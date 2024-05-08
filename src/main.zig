@@ -3,7 +3,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const File = std.fs.File;
 
-const max_char_per_col: u8 = 16;
+const max_char_per_col: u8 = 8;
+const max_hex_line_size: u8 = max_char_per_col * 6 + 7;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -47,14 +48,14 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
     var actual_str = std.ArrayList(u8).init(allocator);
     defer actual_str.deinit();
 
-    var buf: [1:0]u8 = undefined;
+    var buf: [2:0]u8 = undefined;
     var should_read_next: bool = true;
 
-    var col_no: u8 = 1;
+    var col_no: u8 = 0;
     while (should_read_next) outer_loop: {
         write_str.clearRetainingCapacity();
         actual_str.clearRetainingCapacity();
-        col_no = 1;
+        col_no = 0;
 
         (blk: {
             _ = std.fmt.bufPrint(&line_hex_str, "{x:0>8}: ", .{line_no}) catch |err| break :blk err;
@@ -71,7 +72,7 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
                 return;
             };
             should_read_next = r_size == buf.len;
-            if (should_read_next == false) break;
+            if (r_size == 0) break;
 
             const hex_str = dec_to_hex(buf.len, &buf) catch |err| {
                 std.log.err("error occured while creating a hex buffer string = {any}", .{err});
@@ -79,7 +80,7 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
             };
 
             (blk: {
-                write_str.appendSlice(&hex_str) catch |err| break :blk err;
+                write_str.appendSlice(hex_str[0 .. r_size * 2]) catch |err| break :blk err;
                 write_str.append(' ') catch |err| break :blk err;
             }) catch |err| {
                 std.log.err("error occured while saving to output string = {any}", .{err});
@@ -89,7 +90,7 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
             std.mem.replaceScalar(u8, buf[0..], '\n', '.');
             std.mem.replaceScalar(u8, buf[0..], '\r', '.');
             std.mem.replaceScalar(u8, buf[0..], '\x00', '.');
-            actual_str.appendSlice(&buf) catch |err| {
+            actual_str.appendSlice(buf[0..r_size]) catch |err| {
                 std.log.err("error occured while saving actual string = {any}", .{err});
                 return;
             };
@@ -98,7 +99,8 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
         if (actual_str.items.len == 0) break :outer_loop;
 
         (blk: {
-            write_str.appendSlice(" " ** 4) catch |err| break :blk err;
+            const no_of_ws = 2 + max_hex_line_size - write_str.items.len;
+            for (0..no_of_ws) |_| write_str.append(' ') catch |err| break :blk err;
             write_str.appendSlice(actual_str.items[0..actual_str.items.len]) catch |err| break :blk err;
             write_str.append('\n') catch |err| break :blk err;
         }) catch |err| {
