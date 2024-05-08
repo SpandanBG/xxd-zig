@@ -3,6 +3,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const File = std.fs.File;
 
+const max_char_per_col: u8 = 16;
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -34,7 +36,7 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
     };
     defer i_file.close();
 
-    var line_hex_str: [17:0]u8 = undefined; // 10 len hex + ": " + 5 extra for the `{  }%`.
+    var line_hex_str: [15:0]u8 = undefined; // 8 len hex + ": " + 5 extra for the `{  }%`.
     var line_no: u64 = 0;
 
     // Prepare the line to be written to the output file
@@ -48,28 +50,28 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
     var buf: [1:0]u8 = undefined;
     var should_read_next: bool = true;
 
+    var col_no: u8 = 1;
     while (should_read_next) outer_loop: {
         write_str.clearRetainingCapacity();
         actual_str.clearRetainingCapacity();
+        col_no = 1;
 
         (blk: {
-            _ = std.fmt.bufPrint(&line_hex_str, "{X:0>10}: ", .{line_no}) catch |err| break :blk err;
+            _ = std.fmt.bufPrint(&line_hex_str, "{x:0>8}: ", .{line_no}) catch |err| break :blk err;
             write_str.appendSlice(line_hex_str[0..]) catch |err| break :blk err;
-            line_no += 1;
+            line_no += 0x10;
         }) catch |err| {
             std.log.err("error occured while saving to output string = {any}", .{err});
             return;
         };
 
-        while (should_read_next) {
+        while (col_no < max_char_per_col) : (col_no += 1) {
             const r_size = i_file.read(&buf) catch |err| {
                 std.log.err("error occured while reading from input file = {any}", .{err});
                 return;
             };
             should_read_next = r_size == buf.len;
-
-            if (std.mem.eql(u8, &buf, "\n")) break;
-            if (std.mem.eql(u8, &buf, "\x00") or should_read_next == false) break :outer_loop;
+            if (should_read_next == false) break;
 
             const hex_str = dec_to_hex(buf.len, &buf) catch |err| {
                 std.log.err("error occured while creating a hex buffer string = {any}", .{err});
@@ -84,6 +86,9 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
                 return;
             };
 
+            std.mem.replaceScalar(u8, buf[0..], '\n', '.');
+            std.mem.replaceScalar(u8, buf[0..], '\r', '.');
+            std.mem.replaceScalar(u8, buf[0..], '\x00', '.');
             actual_str.appendSlice(&buf) catch |err| {
                 std.log.err("error occured while saving actual string = {any}", .{err});
                 return;
