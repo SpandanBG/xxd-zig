@@ -27,10 +27,10 @@ pub fn main() !void {
     };
     defer out_file.close();
 
-    dump_file(input_file, out_file, allocator);
+    hex_dump(input_file, out_file, allocator);
 }
 
-fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
+fn hex_dump(input_file: [:0]const u8, out: File, allocator: Allocator) void {
     const i_file = std.fs.cwd().openFile(input_file, .{}) catch |err| {
         std.log.err("error occured while opening the file = {any}", .{err});
         return;
