@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const File = std.fs.File;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -17,30 +18,21 @@ pub fn main() !void {
         return;
     }
 
-    var output_file: [:0]const u8 = undefined;
-    if (argsIter.next()) |arg| {
-        output_file = arg;
-    } else {
-        std.log.err("expected output file pth as second cmd line arg", .{});
+    const out_file = get_output_writer(argsIter.next()) catch |err| {
+        std.log.err("error occured while preparing output stream = {any}", .{err});
         return;
-    }
+    };
+    defer out_file.close();
 
-    std.log.info("running xxd from {s} to {s}", .{ input_file, output_file });
-    dump_file(input_file, output_file, allocator);
+    dump_file(input_file, out_file, allocator);
 }
 
-fn dump_file(input_file: [:0]const u8, output_file: [:0]const u8, allocator: Allocator) void {
+fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
     const i_file = std.fs.cwd().openFile(input_file, .{}) catch |err| {
         std.log.err("error occured while opening the file = {any}", .{err});
         return;
     };
     defer i_file.close();
-
-    const o_file = std.fs.cwd().createFile(output_file, .{}) catch |err| {
-        std.log.err("error occured while creating the file = {any}", .{err});
-        return;
-    };
-    defer o_file.close();
 
     var hex_str: [7:0]u8 = undefined; // `{ 00 }%` => 7 len with % as EOF.
     var line_hex_str: [17:0]u8 = undefined; // 10 len hex + ": " + 5 extra for the `{  }%`.
@@ -107,11 +99,14 @@ fn dump_file(input_file: [:0]const u8, output_file: [:0]const u8, allocator: All
             return;
         };
 
-        _ = o_file.write(write_str.items[0..write_str.items.len]) catch |err| {
+        _ = out.write(write_str.items[0..write_str.items.len]) catch |err| {
             std.log.err("error occured while writing to output file = {any}", .{err});
             return;
         };
     }
+}
 
-    std.log.info("done writing", .{});
+fn get_output_writer(out_file: ?([:0]const u8)) File.OpenError!File {
+    const filename = out_file orelse return std.io.getStdOut();
+    return std.fs.cwd().createFile(filename, .{});
 }
