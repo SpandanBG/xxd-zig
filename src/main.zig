@@ -34,7 +34,6 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
     };
     defer i_file.close();
 
-    var hex_str: [7:0]u8 = undefined; // `{ 00 }%` => 7 len with % as EOF.
     var line_hex_str: [17:0]u8 = undefined; // 10 len hex + ": " + 5 extra for the `{  }%`.
     var line_no: u64 = 0;
 
@@ -72,12 +71,15 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
             if (std.mem.eql(u8, &buf, "\n")) break;
             if (std.mem.eql(u8, &buf, "\x00") or should_read_next == false) break :outer_loop;
 
-            _ = std.fmt.bufPrint(&hex_str, "{X:0>2}", .{buf}) catch |err| {
+            const hex_str = dec_to_hex(buf.len, &buf) catch |err| {
                 std.log.err("error occured while creating a hex buffer string = {any}", .{err});
                 return;
             };
 
-            write_str.appendSlice(hex_str[2..5]) catch |err| {
+            (blk: {
+                write_str.appendSlice(&hex_str) catch |err| break :blk err;
+                write_str.append(' ') catch |err| break :blk err;
+            }) catch |err| {
                 std.log.err("error occured while saving to output string = {any}", .{err});
                 return;
             };
@@ -109,4 +111,18 @@ fn dump_file(input_file: [:0]const u8, out: File, allocator: Allocator) void {
 fn get_output_writer(out_file: ?([:0]const u8)) File.OpenError!File {
     const filename = out_file orelse return std.io.getStdOut();
     return std.fs.cwd().createFile(filename, .{});
+}
+
+fn dec_to_hex(comptime n: usize, dec: *const [n:0]u8) std.fmt.BufPrintError![n * 2:0]u8 {
+    var hex: [n * 2:0]u8 = undefined;
+    var buf: [7:0]u8 = undefined;
+
+    for (dec, 0..) |char, i| {
+        const inp: [1:0]u8 = .{char};
+        _ = try std.fmt.bufPrint(&buf, "{x:0>2}", .{inp});
+
+        for (buf[2..4], i * 2..) |hex_char, j| hex[j] = hex_char;
+    }
+
+    return hex;
 }
