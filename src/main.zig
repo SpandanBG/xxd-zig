@@ -6,28 +6,49 @@ const File = std.fs.File;
 const max_char_per_col: u8 = 8;
 const max_hex_line_size: u8 = max_char_per_col * 6 + 7;
 
+const Config = struct {
+    input_file: [:0]const u8,
+    output_file: ?[:0]const u8 = null,
+};
+
+const ArgsError = error{INVALID_CLI_ARGS};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var argsIter = try std.process.ArgIterator.initWithAllocator(allocator);
-    _ = argsIter.next(); // Skip first arg (process bin path)
+    const config = try get_cli_args(allocator);
 
-    var input_file: [:0]const u8 = undefined;
-    if (argsIter.next()) |arg| {
-        input_file = arg;
-    } else {
-        std.log.err("expected input file path as first cmd line arg", .{});
-        return;
-    }
-
-    const out_file = get_output_writer(argsIter.next()) catch |err| {
+    const out_file = get_output_writer(config.output_file) catch |err| {
         std.log.err("error occured while preparing output stream = {any}", .{err});
         return;
     };
     defer out_file.close();
 
-    hex_dump(input_file, out_file, allocator);
+    hex_dump(config.input_file, out_file, allocator);
+}
+
+fn get_cli_args(allocator: Allocator) ArgsError!Config {
+    var argsIter = try std.process.ArgIterator.initWithAllocator(allocator);
+    defer argsIter.deinit();
+
+    _ = argsIter.next(); // Skip first arg (process bin path)
+
+    var input_file: [:0]const u8 = undefined;
+    if (argsIter.next()) |i_file_name| {
+        input_file = i_file_name;
+    } else {
+        std.log.err("expected input file path as first cmd line arg", .{});
+        return ArgsError.INVALID_CLI_ARGS;
+    }
+
+    var config: Config = .{ .input_file = input_file };
+
+    if (argsIter.next()) |o_file_name| {
+        config.output_file = o_file_name;
+    }
+
+    return config;
 }
 
 fn hex_dump(input_file: [:0]const u8, out: File, allocator: Allocator) void {
