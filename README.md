@@ -2,16 +2,32 @@
 
 Toy implemenations of the `xxd` linux command in Zig
 
-# Run
+## Build
+Debug:
+```shell
+zig build
+```
+
+Release Linux:
+```shell
+zig build -Dtarget=x86_64-linux -Doptimize=ReleaseFast
+```
+
+## Build Dirctory
+```shell
+./zig-out/bin/xxd
+```
+
+## Run
 
 #### input file to output file
 ```shell
-zig build run -- ./mocks/hello.txt ./mocks/hello.hex && cat ./mocks/hello.hex
+./xxd -i ./mocks/hello.txt -o ./mocks/hello.hex && cat ./mocks/hello.hex
 ```
 
 #### input file to console output
 ```shell
-zig build run -- ./mocks/hello.txt
+./xxd -i ./mocks/hello.txt
 ```
 
 #### Example output:

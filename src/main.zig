@@ -7,11 +7,14 @@ const max_char_per_col: u8 = 8;
 const max_hex_line_size: u8 = max_char_per_col * 6 + 7;
 
 const Config = struct {
-    input_file: [:0]const u8,
+    input_file: ?[:0]const u8 = null,
     output_file: ?[:0]const u8 = null,
 };
 
 const ArgsError = error{INVALID_CLI_ARGS};
+
+const InputFileFlag = "-i";
+const OutputFileFlag = "-o";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -25,27 +28,30 @@ pub fn main() !void {
     };
     defer out_file.close();
 
-    hex_dump(config.input_file, out_file, allocator);
+    hex_dump(config.input_file.?, out_file, allocator);
 }
 
-fn get_cli_args(allocator: Allocator) ArgsError!Config {
+fn get_cli_args(allocator: Allocator) !Config {
     var argsIter = try std.process.ArgIterator.initWithAllocator(allocator);
     defer argsIter.deinit();
 
     _ = argsIter.next(); // Skip first arg (process bin path)
 
-    var input_file: [:0]const u8 = undefined;
-    if (argsIter.next()) |i_file_name| {
-        input_file = i_file_name;
-    } else {
-        std.log.err("expected input file path as first cmd line arg", .{});
-        return ArgsError.INVALID_CLI_ARGS;
+    var config: Config = .{};
+
+    while (argsIter.next()) |arg| {
+        if (std.mem.eql(u8, InputFileFlag, arg)) {
+            config.input_file = argsIter.next();
+        }
+
+        if (std.mem.eql(u8, OutputFileFlag, arg)) {
+            config.output_file = argsIter.next();
+        }
     }
 
-    var config: Config = .{ .input_file = input_file };
-
-    if (argsIter.next()) |o_file_name| {
-        config.output_file = o_file_name;
+    if (config.input_file == null) {
+        std.log.err("missing: -i <file_path>", .{});
+        return ArgsError.INVALID_CLI_ARGS;
     }
 
     return config;
