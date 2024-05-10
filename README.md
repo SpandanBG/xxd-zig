@@ -18,6 +18,13 @@ zig build -Dtarget=x86_64-linux -Doptimize=ReleaseFast
 ./zig-out/bin/xxd
 ```
 
+## Usage 
+> Usage:
+>       xxd [options]
+> Options:
+>       -i <file_name>          input file name
+>       -o <file_name>          output file name
+
 ## Run
 
 #### input file to output file
@@ -28,6 +35,11 @@ zig build -Dtarget=x86_64-linux -Doptimize=ReleaseFast
 #### input file to console output
 ```shell
 ./xxd -i ./mocks/hello.txt
+```
+
+#### input stream to console output
+```shell
+cat file.txt | ./xxd
 ```
 
 #### Example output:

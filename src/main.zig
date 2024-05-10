@@ -22,13 +22,19 @@ pub fn main() !void {
 
     const config = try get_cli_args(allocator);
 
+    const in_file = get_input_reader(config.input_file) catch |err| {
+        std.log.err("error occured while preparing input stream = {any}", .{err});
+        return;
+    };
+    defer in_file.close();
+
     const out_file = get_output_writer(config.output_file) catch |err| {
         std.log.err("error occured while preparing output stream = {any}", .{err});
         return;
     };
     defer out_file.close();
 
-    hex_dump(config.input_file.?, out_file, allocator);
+    hex_dump(in_file, out_file, allocator);
 }
 
 fn get_cli_args(allocator: Allocator) !Config {
@@ -49,21 +55,10 @@ fn get_cli_args(allocator: Allocator) !Config {
         }
     }
 
-    if (config.input_file == null) {
-        std.log.err("missing: -i <file_path>", .{});
-        return ArgsError.INVALID_CLI_ARGS;
-    }
-
     return config;
 }
 
-fn hex_dump(input_file: [:0]const u8, out: File, allocator: Allocator) void {
-    const i_file = std.fs.cwd().openFile(input_file, .{}) catch |err| {
-        std.log.err("error occured while opening the file = {any}", .{err});
-        return;
-    };
-    defer i_file.close();
-
+fn hex_dump(in: File, out: File, allocator: Allocator) void {
     var line_hex_str: [15:0]u8 = undefined; // 8 len hex + ": " + 5 extra for the `{  }%`.
     var line_no: u64 = 0;
 
@@ -94,7 +89,7 @@ fn hex_dump(input_file: [:0]const u8, out: File, allocator: Allocator) void {
         };
 
         while (col_no < max_char_per_col) : (col_no += 1) {
-            const r_size = i_file.read(&buf) catch |err| {
+            const r_size = in.read(&buf) catch |err| {
                 std.log.err("error occured while reading from input file = {any}", .{err});
                 return;
             };
@@ -140,6 +135,11 @@ fn hex_dump(input_file: [:0]const u8, out: File, allocator: Allocator) void {
             return;
         };
     }
+}
+
+fn get_input_reader(input_file: ?([:0]const u8)) File.OpenError!File {
+    const filename = input_file orelse return std.io.getStdIn();
+    return std.fs.cwd().openFile(filename, .{});
 }
 
 fn get_output_writer(out_file: ?([:0]const u8)) File.OpenError!File {
