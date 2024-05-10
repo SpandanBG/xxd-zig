@@ -19,11 +19,13 @@ zig build -Dtarget=x86_64-linux -Doptimize=ReleaseFast
 ```
 
 ## Usage 
-> Usage:
->       xxd [options]
-> Options:
->       -i <file_name>          input file name
->       -o <file_name>          output file name
+```shell
+Usage:
+      xxd [options]
+Options:
+      -i <file_name>          input file name
+      -o <file_name>          output file name
+```
 
 ## Run
 
