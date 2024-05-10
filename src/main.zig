@@ -67,22 +67,26 @@ fn get_cli_args(allocator: Allocator) !Config {
 }
 
 fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
-    var hex_buf: [10:0]u8 = undefined;
+    var hex_buf: [10:0]u8 = undefined; // 10 cause largest hex string => `{x:0>8}: `
     var should_read_next: bool = true;
-    var line_no: u64 = 0;
-    var col_no: u8 = 0;
+    var line_no: usize = 0;
+    var col_no: usize = 0;
+    var chars_read: usize = 0;
 
     // Prepare the line to be written to the output file
     var write_str = std.ArrayList(u8).init(allocator);
     defer write_str.deinit();
 
     // Prepare the actual string to be appended to the output file
-    var actual_str = std.ArrayList(u8).init(allocator);
-    defer actual_str.deinit();
+    var actual_str = allocator.alloc(u8, config.max_char_per_col) catch |err| {
+        std.log.err("error occured while initializing buffer for actual string = {any}", .{err});
+        return;
+    };
+    defer allocator.free(actual_str);
 
     while (should_read_next) outer_loop: {
         write_str.clearRetainingCapacity();
-        actual_str.clearRetainingCapacity();
+        chars_read = 0;
         col_no = 0;
 
         (blk: {
@@ -94,7 +98,7 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
             return;
         };
 
-        for (0..config.max_char_per_col) |i| {
+        while (chars_read < config.max_char_per_col) : (chars_read += 1) {
             const maybe_char = file_next_char(in) catch |err| {
                 std.log.err("error occured while reading from input file = {any}", .{err});
                 return;
@@ -112,25 +116,25 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
                 return;
             };
 
-            if (i % 2 != 0) {
+            if (chars_read % 2 != 0) {
                 write_str.append(' ') catch |err| {
                     std.log.err("error occurd while saving space after hex pair = {any}", .{err});
                     return;
                 };
             }
 
-            actual_str.append(if (char == '\n' or char == '\r' or char == '\x00') '.' else char) catch |err| {
-                std.log.err("error occured while saving actual string = {any}", .{err});
-                return;
-            };
+            switch (char) {
+                '\n', '\r', '\x00' => actual_str[chars_read] = '.',
+                else => actual_str[chars_read] = char,
+            }
         }
 
-        if (actual_str.items.len == 0) break :outer_loop;
+        if (chars_read == 0) break :outer_loop;
 
         (blk: {
             const no_of_ws = 2 + config.max_hex_line_size - write_str.items.len;
             for (0..no_of_ws) |_| write_str.append(' ') catch |err| break :blk err;
-            write_str.appendSlice(actual_str.items[0..actual_str.items.len]) catch |err| break :blk err;
+            write_str.appendSlice(actual_str[0..chars_read]) catch |err| break :blk err;
             write_str.append('\n') catch |err| break :blk err;
         }) catch |err| {
             std.log.err("error occured preparing final write string = {any}", .{err});
