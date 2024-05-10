@@ -4,7 +4,12 @@ const Allocator = std.mem.Allocator;
 const File = std.fs.File;
 
 const max_char_per_col: u8 = 8;
-const max_hex_line_size: u8 = max_char_per_col * 6 + 7;
+
+// 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) + 1 (' ')
+// 10 + 2 + 32 + 8 + 1
+// 52 + 1
+// 8 * 6 + 1
+const max_hex_line_size: u8 = max_char_per_col * 6 + 1;
 
 const Config = struct {
     input_file: ?[:0]const u8 = null,
@@ -59,7 +64,7 @@ fn get_cli_args(allocator: Allocator) !Config {
 }
 
 fn hex_dump(in: File, out: File, allocator: Allocator) void {
-    var line_hex_str: [15:0]u8 = undefined; // 8 len hex + ": " + 5 extra for the `{  }%`.
+    var line_hex_buf: [10:0]u8 = undefined;
     var line_no: u64 = 0;
 
     // Prepare the line to be written to the output file
@@ -80,8 +85,8 @@ fn hex_dump(in: File, out: File, allocator: Allocator) void {
         col_no = 0;
 
         (blk: {
-            _ = std.fmt.bufPrint(&line_hex_str, "{x:0>8}: ", .{line_no}) catch |err| break :blk err;
-            write_str.appendSlice(line_hex_str[0..]) catch |err| break :blk err;
+            const line_hex_str = std.fmt.bufPrint(&line_hex_buf, "{x:0>8}: ", .{line_no}) catch |err| break :blk err;
+            write_str.appendSlice(line_hex_str) catch |err| break :blk err;
             line_no += 0x10;
         }) catch |err| {
             std.log.err("error occured while saving to output string = {any}", .{err});
