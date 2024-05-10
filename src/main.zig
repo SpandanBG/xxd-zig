@@ -11,18 +11,31 @@ const Config = struct {
     reverse: bool = false,
 };
 
-const ArgsError = error{INVALID_CLI_ARGS};
+const ArgsError = error{
+    INVALID_CLI_ARGS,
+    SHOW_HELP,
+    NO_INPUT_FILE_SPECIFIED,
+    NO_OUTPUT_FILE_SPECIFIED,
+};
 
 const InputFileFlag = "-i";
 const OutputFileFlag = "-o";
 const ColumnSizeFlag = "-c";
 const ReverseFlag = "-r";
+const ShowHelp = "-h";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const config = try get_cli_args(allocator);
+    const config = get_cli_args(allocator) catch |err| {
+        if (err != ArgsError.SHOW_HELP) {
+            std.log.err("error occured while reading cli args = {any}", .{err});
+        }
+
+        try show_help();
+        return;
+    };
 
     const in_file = get_input_reader(config.input_file) catch |err| {
         std.log.err("error occured while preparing input stream = {any}", .{err});
@@ -54,11 +67,13 @@ fn get_cli_args(allocator: Allocator) !Config {
     while (argsIter.next()) |arg| {
         if (std.mem.eql(u8, InputFileFlag, arg)) {
             config.input_file = argsIter.next();
+            if (config.input_file == null) return ArgsError.NO_INPUT_FILE_SPECIFIED;
             continue;
         }
 
         if (std.mem.eql(u8, OutputFileFlag, arg)) {
             config.output_file = argsIter.next();
+            if (config.output_file == null) return ArgsError.NO_OUTPUT_FILE_SPECIFIED;
             continue;
         }
 
@@ -71,6 +86,10 @@ fn get_cli_args(allocator: Allocator) !Config {
         if (std.mem.eql(u8, ReverseFlag, arg)) {
             config.reverse = true;
             continue;
+        }
+
+        if (std.mem.eql(u8, ShowHelp, arg)) {
+            return ArgsError.SHOW_HELP;
         }
     }
 
@@ -234,4 +253,11 @@ fn get_max_hex_line_size(col_size: usize) usize {
     // 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) - 1 (remove ending ' ')
     const last_space: usize = if (col_size % 2 == 0) 1 else 0;
     return 10 + 2 * col_size + col_size / 2 - last_space;
+}
+
+fn show_help() !void {
+    const out = std.io.getStdOut();
+    defer out.close();
+
+    _ = try out.write("Usage:\n\txxd [options]\nOptions:\n\t-i <file_name>          input file name\n\t-o <file_name>          output file name\n\t-c <col_size>           size of the column\n\t-r                      reverse a hex dump to original\n\t-h                      show this prompt");
 }
