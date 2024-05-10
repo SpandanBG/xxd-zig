@@ -51,3 +51,10 @@ cat file.txt | ./xxd
 00000010: 6c6c 6f2c 2065 6172 7468 210a 6865 6c6c   llo, earth!.hell
 00000020: 6f2c 206d 6f6f 6e21 0a                    o, moon!.
 ```
+
+#### Different column size
+```shell
+$ echo "hello" | zig build run -- -c 8 | xxd -r
+hello
+```
+> Note, here the `xxd` is the actual CLI tool and not the build by this project
