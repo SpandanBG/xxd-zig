@@ -72,10 +72,7 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
     var line_no: usize = 0;
     var col_no: usize = 0;
     var chars_read: usize = 0;
-
-    // Prepare the line to be written to the output file
-    var write_str = std.ArrayList(u8).init(allocator);
-    defer write_str.deinit();
+    var hex_wrote: usize = 0;
 
     // Prepare the actual string to be appended to the output file
     var actual_str = allocator.alloc(u8, config.max_char_per_col) catch |err| {
@@ -85,16 +82,16 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
     defer allocator.free(actual_str);
 
     while (should_read_next) outer_loop: {
-        write_str.clearRetainingCapacity();
+        hex_wrote = 0;
         chars_read = 0;
         col_no = 0;
 
         (blk: {
             const line_hex_str = std.fmt.bufPrint(&hex_buf, "{x:0>8}: ", .{line_no}) catch |err| break :blk err;
-            write_str.appendSlice(line_hex_str) catch |err| break :blk err;
+            hex_wrote += out.write(line_hex_str) catch |err| break :blk err;
             line_no += 0x10;
         }) catch |err| {
-            std.log.err("error occured while saving to output string = {any}", .{err});
+            std.log.err("error occured while writing to output = {any}", .{err});
             return;
         };
 
@@ -111,14 +108,14 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
                 return;
             };
 
-            write_str.appendSlice(hex_str) catch |err| {
-                std.log.err("error occured while saving to output string = {any}", .{err});
+            hex_wrote += out.write(hex_str) catch |err| {
+                std.log.err("error occured while writing to output = {any}", .{err});
                 return;
             };
 
             if (chars_read % 2 != 0) {
-                write_str.append(' ') catch |err| {
-                    std.log.err("error occurd while saving space after hex pair = {any}", .{err});
+                hex_wrote += out.write(" ") catch |err| {
+                    std.log.err("error occurd while writing space after hex pair to output = {any}", .{err});
                     return;
                 };
             }
@@ -132,17 +129,12 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
         if (chars_read == 0) break :outer_loop;
 
         (blk: {
-            const no_of_ws = 2 + config.max_hex_line_size - write_str.items.len;
-            for (0..no_of_ws) |_| write_str.append(' ') catch |err| break :blk err;
-            write_str.appendSlice(actual_str[0..chars_read]) catch |err| break :blk err;
-            write_str.append('\n') catch |err| break :blk err;
+            const no_of_ws = 2 + config.max_hex_line_size - hex_wrote;
+            for (0..no_of_ws) |_| _ = out.write(" ") catch |err| break :blk err;
+            _ = out.write(actual_str[0..chars_read]) catch |err| break :blk err;
+            _ = out.write("\n") catch |err| break :blk err;
         }) catch |err| {
-            std.log.err("error occured preparing final write string = {any}", .{err});
-            return;
-        };
-
-        _ = out.write(write_str.items[0..write_str.items.len]) catch |err| {
-            std.log.err("error occured while writing to output file = {any}", .{err});
+            std.log.err("error occured while writing to output = {any}", .{err});
             return;
         };
     }
