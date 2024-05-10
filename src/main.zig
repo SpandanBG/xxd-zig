@@ -10,7 +10,7 @@ const Config = struct {
     max_hex_line_size: usize = get_max_hex_line_size(16),
 };
 
-const ArgsError = error{ INVALID_CLI_ARGS, NON_EVEN_COL_SIZE };
+const ArgsError = error{INVALID_CLI_ARGS};
 
 const InputFileFlag = "-i";
 const OutputFileFlag = "-o";
@@ -58,7 +58,6 @@ fn get_cli_args(allocator: Allocator) !Config {
 
         if (std.mem.eql(u8, ColumnSizeFlag, arg)) {
             config.max_char_per_col = try std.fmt.parseInt(usize, argsIter.next() orelse "", 10);
-            if (config.max_char_per_col % 2 != 0) return ArgsError.NON_EVEN_COL_SIZE;
             config.max_hex_line_size = get_max_hex_line_size(config.max_char_per_col);
             continue;
         }
@@ -164,5 +163,6 @@ fn file_next_char(file: File) !?u8 {
 
 fn get_max_hex_line_size(col_size: usize) usize {
     // 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) - 1 (remove ending ' ')
-    return 10 + 2 * col_size + col_size / 2 - 1;
+    const last_space: usize = if (col_size % 2 == 0) 1 else 0;
+    return 10 + 2 * col_size + col_size / 2 - last_space;
 }

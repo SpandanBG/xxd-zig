@@ -25,7 +25,7 @@ Usage:
 Options:
       -i <file_name>          input file name
       -o <file_name>          output file name
-      -c <col_size>           size of the column. (must be an even number at the moment)
+      -c <col_size>           size of the column
 ```
 
 ## Run
