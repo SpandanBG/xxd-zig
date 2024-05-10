@@ -32,17 +32,17 @@ Options:
 
 #### input file to output file
 ```shell
-./xxd -i ./mocks/hello.txt -o ./mocks/hello.hex && cat ./mocks/hello.hex
+./zig-out/bin/xxd -i ./mocks/hello.txt -o ./mocks/hello.hex && cat ./mocks/hello.hex
 ```
 
 #### input file to console output
 ```shell
-./xxd -i ./mocks/hello.txt
+./zig-out/bin/xxd -i ./mocks/hello.txt
 ```
 
 #### input stream to console output
 ```shell
-cat file.txt | ./xxd
+cat file.txt | ./zig-out/bin/xxd
 ```
 
 #### Example output:
@@ -57,4 +57,4 @@ cat file.txt | ./xxd
 $ echo "hello" | zig build run -- -c 8 | xxd -r
 hello
 ```
-> Note, here the `xxd` is the actual CLI tool and not the one build by this project
+> Note, here the `xxd` is the actual CLI tool and not the build by this project
