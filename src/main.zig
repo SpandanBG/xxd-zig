@@ -3,17 +3,11 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const File = std.fs.File;
 
-const max_char_per_col: u8 = 8;
-
-// 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) + 1 (' ')
-// 10 + 2 + 32 + 8 + 1
-// 52 + 1
-// 8 * 6 + 1
-const max_hex_line_size: u8 = max_char_per_col * 6 + 1;
-
 const Config = struct {
     input_file: ?[:0]const u8 = null,
     output_file: ?[:0]const u8 = null,
+    max_char_per_col: usize = 16,
+    max_hex_line_size: usize = get_max_hex_line_size(16),
 };
 
 const ArgsError = error{INVALID_CLI_ARGS};
@@ -39,7 +33,7 @@ pub fn main() !void {
     };
     defer out_file.close();
 
-    hex_dump(in_file, out_file, allocator);
+    hex_dump(in_file, out_file, config, allocator);
 }
 
 fn get_cli_args(allocator: Allocator) !Config {
@@ -63,7 +57,7 @@ fn get_cli_args(allocator: Allocator) !Config {
     return config;
 }
 
-fn hex_dump(in: File, out: File, allocator: Allocator) void {
+fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
     var line_hex_buf: [10:0]u8 = undefined;
     var line_no: u64 = 0;
 
@@ -93,7 +87,7 @@ fn hex_dump(in: File, out: File, allocator: Allocator) void {
             return;
         };
 
-        while (col_no < max_char_per_col) : (col_no += 1) {
+        while (col_no < config.max_char_per_col) : (col_no += 2) {
             const r_size = in.read(&buf) catch |err| {
                 std.log.err("error occured while reading from input file = {any}", .{err});
                 return;
@@ -126,7 +120,7 @@ fn hex_dump(in: File, out: File, allocator: Allocator) void {
         if (actual_str.items.len == 0) break :outer_loop;
 
         (blk: {
-            const no_of_ws = 2 + max_hex_line_size - write_str.items.len;
+            const no_of_ws = 2 + config.max_hex_line_size - write_str.items.len;
             for (0..no_of_ws) |_| write_str.append(' ') catch |err| break :blk err;
             write_str.appendSlice(actual_str.items[0..actual_str.items.len]) catch |err| break :blk err;
             write_str.append('\n') catch |err| break :blk err;
@@ -164,4 +158,12 @@ fn dec_to_hex(comptime n: usize, dec: *const [n:0]u8) std.fmt.BufPrintError![n *
     }
 
     return hex;
+}
+
+fn get_max_hex_line_size(col_size: usize) usize {
+    // 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) + 1 (' ')
+    // 10 + 2 + 32 + 8 + 1
+    // 52 + 1
+    // (16/2) * 6 + 1; where col_size = 16
+    return (col_size / 2) * 6 + 1;
 }
