@@ -57,4 +57,4 @@ cat file.txt | ./xxd
 $ echo "hello" | zig build run -- -c 8 | xxd -r
 hello
 ```
-> Note, here the `xxd` is the actual CLI tool and not the build by this project
+> Note, here the `xxd` is the actual CLI tool and not the one build by this project
