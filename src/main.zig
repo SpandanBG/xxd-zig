@@ -153,11 +153,12 @@ fn reverse_hex_dump(in: File, out: File) void {
     var hex_str: [2:0]u8 = undefined;
     var out_buff: [1:0]u8 = undefined;
     var reading_hex = false;
+    var line_done = false;
 
     while (file_next_char(in) catch null) |c| {
         var char = c;
 
-        if (char == ':') {
+        if (char == ':' and !line_done) {
             _ = file_next_char(in) catch |err| {
                 std.log.err("error occured while trying to read ' ' after : = {any}", .{err});
                 return;
@@ -168,7 +169,17 @@ fn reverse_hex_dump(in: File, out: File) void {
 
         if (char == '\n') {
             reading_hex = false;
+            line_done = false; // reset line done for next line
             continue;
+        }
+
+        if (char == '\r') {
+            char = (file_next_char(in) catch |err| {
+                std.log.err("error occured while trying to read slash n after slash r = {any}", .{err});
+                return;
+            }) orelse continue;
+            reading_hex = char != '\n';
+            line_done = !(char == '\n'); // reset line done for next line
         }
 
         if (char == ' ' and reading_hex) {
@@ -177,6 +188,7 @@ fn reverse_hex_dump(in: File, out: File) void {
                 return;
             }) orelse continue;
             reading_hex = char != ' ';
+            line_done = char == ' ';
         }
 
         if (!reading_hex) continue;
@@ -190,7 +202,7 @@ fn reverse_hex_dump(in: File, out: File) void {
         hex_str[1] = next_char;
 
         out_buff[0] = std.fmt.parseInt(u8, &hex_str, 16) catch |err| {
-            std.log.err("error occured while trying to parse hex to dec = {any}", .{err});
+            std.log.err("error occured while trying to parse hex {s} to dec = {any}", .{ hex_str, err });
             return;
         };
 
