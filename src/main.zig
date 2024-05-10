@@ -120,10 +120,7 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
                 };
             }
 
-            switch (char) {
-                '\n', '\r', '\x00' => actual_str[chars_read] = '.',
-                else => actual_str[chars_read] = char,
-            }
+            actual_str[chars_read] = if (char >= '!' and char <= '~') char else '.';
         }
 
         if (chars_read == 0) break :outer_loop;
