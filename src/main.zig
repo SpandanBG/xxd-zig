@@ -10,10 +10,11 @@ const Config = struct {
     max_hex_line_size: usize = get_max_hex_line_size(16),
 };
 
-const ArgsError = error{INVALID_CLI_ARGS};
+const ArgsError = error{ INVALID_CLI_ARGS, NON_EVEN_COL_SIZE };
 
 const InputFileFlag = "-i";
 const OutputFileFlag = "-o";
+const ColumnSizeFlag = "-c";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -47,10 +48,19 @@ fn get_cli_args(allocator: Allocator) !Config {
     while (argsIter.next()) |arg| {
         if (std.mem.eql(u8, InputFileFlag, arg)) {
             config.input_file = argsIter.next();
+            continue;
         }
 
         if (std.mem.eql(u8, OutputFileFlag, arg)) {
             config.output_file = argsIter.next();
+            continue;
+        }
+
+        if (std.mem.eql(u8, ColumnSizeFlag, arg)) {
+            config.max_char_per_col = try std.fmt.parseInt(usize, argsIter.next() orelse "", 10);
+            if (config.max_char_per_col % 2 != 0) return ArgsError.NON_EVEN_COL_SIZE;
+            config.max_hex_line_size = get_max_hex_line_size(config.max_char_per_col);
+            continue;
         }
     }
 
@@ -161,9 +171,6 @@ fn dec_to_hex(comptime n: usize, dec: *const [n:0]u8) std.fmt.BufPrintError![n *
 }
 
 fn get_max_hex_line_size(col_size: usize) usize {
-    // 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) + 1 (' ')
-    // 10 + 2 + 32 + 8 + 1
-    // 52 + 1
-    // (16/2) * 6 + 1; where col_size = 16
-    return (col_size / 2) * 6 + 1;
+    // 8 + 1 (:) + 1 (' ') + 2 * 16(max chars per column) + 16/2 (no. of space after each hex pair) - 1 (remove ending ' ')
+    return 10 + 2 * col_size + col_size / 2 - 1;
 }
