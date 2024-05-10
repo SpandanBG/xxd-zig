@@ -26,6 +26,7 @@ Options:
       -i <file_name>          input file name
       -o <file_name>          output file name
       -c <col_size>           size of the column
+      -r                      reverse a hex dump to original
 ```
 
 ## Run
@@ -55,6 +56,13 @@ cat file.txt | ./zig-out/bin/xxd
 #### Different column size
 ```shell
 $ echo "hello" | zig build run -- -c 8 | xxd -r
+hello
+```
+> Note, here the `xxd` is the actual CLI tool and not the build by this project
+
+#### Reverse hex dump to original
+```shell
+$ echo "hello" | xxd -c 8 | zig build run -- -r
 hello
 ```
 > Note, here the `xxd` is the actual CLI tool and not the build by this project

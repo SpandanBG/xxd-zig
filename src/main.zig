@@ -8,6 +8,7 @@ const Config = struct {
     output_file: ?[:0]const u8 = null,
     max_char_per_col: usize = 16,
     max_hex_line_size: usize = get_max_hex_line_size(16),
+    reverse: bool = false,
 };
 
 const ArgsError = error{INVALID_CLI_ARGS};
@@ -15,6 +16,7 @@ const ArgsError = error{INVALID_CLI_ARGS};
 const InputFileFlag = "-i";
 const OutputFileFlag = "-o";
 const ColumnSizeFlag = "-c";
+const ReverseFlag = "-r";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -34,7 +36,11 @@ pub fn main() !void {
     };
     defer out_file.close();
 
-    hex_dump(in_file, out_file, config, allocator);
+    if (config.reverse) {
+        reverse_hex_dump(in_file, out_file);
+    } else {
+        hex_dump(in_file, out_file, config, allocator);
+    }
 }
 
 fn get_cli_args(allocator: Allocator) !Config {
@@ -59,6 +65,11 @@ fn get_cli_args(allocator: Allocator) !Config {
         if (std.mem.eql(u8, ColumnSizeFlag, arg)) {
             config.max_char_per_col = try std.fmt.parseInt(usize, argsIter.next() orelse "", 10);
             config.max_hex_line_size = get_max_hex_line_size(config.max_char_per_col);
+            continue;
+        }
+
+        if (std.mem.eql(u8, ReverseFlag, arg)) {
+            config.reverse = true;
             continue;
         }
     }
@@ -128,10 +139,63 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
         (blk: {
             const no_of_ws = 2 + config.max_hex_line_size - hex_wrote;
             for (0..no_of_ws) |_| _ = out.write(" ") catch |err| break :blk err;
+
             _ = out.write(actual_str[0..chars_read]) catch |err| break :blk err;
             _ = out.write("\n") catch |err| break :blk err;
         }) catch |err| {
             std.log.err("error occured while writing to output = {any}", .{err});
+            return;
+        };
+    }
+}
+
+fn reverse_hex_dump(in: File, out: File) void {
+    var hex_str: [2:0]u8 = undefined;
+    var out_buff: [1:0]u8 = undefined;
+    var reading_hex = false;
+
+    while (file_next_char(in) catch null) |c| {
+        var char = c;
+
+        if (char == ':') {
+            _ = file_next_char(in) catch |err| {
+                std.log.err("error occured while trying to read ' ' after : = {any}", .{err});
+                return;
+            };
+            reading_hex = true;
+            continue;
+        }
+
+        if (char == '\n') {
+            reading_hex = false;
+            continue;
+        }
+
+        if (char == ' ' and reading_hex) {
+            char = (file_next_char(in) catch |err| {
+                std.log.err("error occured while trying to read after ' ' = {any}", .{err});
+                return;
+            }) orelse continue;
+            reading_hex = char != ' ';
+        }
+
+        if (!reading_hex) continue;
+
+        const next_char = (file_next_char(in) catch |err| {
+            std.log.err("error occured while trying to read the next charcter of hex = {any}", .{err});
+            return;
+        }) orelse continue;
+
+        hex_str[0] = char;
+        hex_str[1] = next_char;
+
+        out_buff[0] = std.fmt.parseInt(u8, &hex_str, 16) catch |err| {
+            std.log.err("error occured while trying to parse hex to dec = {any}", .{err});
+            return;
+        };
+
+        _ = out.write(&out_buff) catch |err| {
+            std.log.err("error occured while trying to write to output = {any}", .{err});
             return;
         };
     }
