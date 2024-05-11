@@ -9,6 +9,7 @@ const Config = struct {
     max_char_per_col: usize = 16,
     max_hex_line_size: usize = get_max_hex_line_size(16),
     reverse: bool = false,
+    prettry_print: bool = false,
 };
 
 const ArgsError = error{
@@ -22,7 +23,15 @@ const InputFileFlag = "-i";
 const OutputFileFlag = "-o";
 const ColumnSizeFlag = "-c";
 const ReverseFlag = "-r";
+const PrettyPrintFlag = "-p";
 const ShowHelp = "-h";
+
+// \e[1;32m
+const GreenColor: [:0]const u8 = "\x1b[32m";
+// \e[1;33m
+const YellowColor: [:0]const u8 = "\x1b[33m";
+// \e[0m
+const ResetColor: [:0]const u8 = "\x1b[0m";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -88,6 +97,11 @@ fn get_cli_args(allocator: Allocator) !Config {
             continue;
         }
 
+        if (std.mem.eql(u8, PrettyPrintFlag, arg)) {
+            config.prettry_print = true;
+            continue;
+        }
+
         if (std.mem.eql(u8, ShowHelp, arg)) {
             return ArgsError.SHOW_HELP;
         }
@@ -125,6 +139,13 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
             return;
         };
 
+        if (config.prettry_print) {
+            _ = out.write(GreenColor) catch |err| {
+                std.log.err("error occured while printing color green = {any}", .{err});
+                return;
+            };
+        }
+
         while (chars_read < config.max_char_per_col) : (chars_read += 1) {
             const maybe_char = file_next_char(in) catch |err| {
                 std.log.err("error occured while reading from input file = {any}", .{err});
@@ -138,7 +159,11 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
                 return;
             };
 
-            hex_wrote += out.write(hex_str) catch |err| {
+            (blk: {
+                if (config.prettry_print and (char == '\n' or char == '\r')) _ = out.write(YellowColor) catch |err| break :blk err;
+                hex_wrote += out.write(hex_str) catch |err| break :blk err;
+                if (config.prettry_print and (char == '\n' or char == '\r')) _ = out.write(GreenColor) catch |err| break :blk err;
+            }) catch |err| {
                 std.log.err("error occured while writing to output = {any}", .{err});
                 return;
             };
@@ -160,6 +185,7 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
             for (0..no_of_ws) |_| _ = out.write(" ") catch |err| break :blk err;
 
             _ = out.write(actual_str[0..chars_read]) catch |err| break :blk err;
+            if (config.prettry_print) _ = out.write(ResetColor) catch |err| break :blk err;
             _ = out.write("\n") catch |err| break :blk err;
         }) catch |err| {
             std.log.err("error occured while writing to output = {any}", .{err});
@@ -255,9 +281,20 @@ fn get_max_hex_line_size(col_size: usize) usize {
     return 10 + 2 * col_size + col_size / 2 - last_space;
 }
 
+const help_promot =
+    \\Usage:
+    \\      xxd [options]
+    \\Options:
+    \\      -i <file_name>          input file name
+    \\      -o <file_name>          output file name
+    \\      -c <col_size>           size of the column
+    \\      -r                      reverse a hex dump to original
+    \\      -p                      pretty print: colored hex. not compatible with -r
+    \\      -h                      show this prompt
+;
+
 fn show_help() !void {
     const out = std.io.getStdOut();
     defer out.close();
-
-    _ = try out.write("Usage:\n\txxd [options]\nOptions:\n\t-i <file_name>          input file name\n\t-o <file_name>          output file name\n\t-c <col_size>           size of the column\n\t-r                      reverse a hex dump to original\n\t-h                      show this prompt");
+    _ = try out.write(help_promot);
 }

@@ -27,6 +27,7 @@ Options:
       -o <file_name>          output file name
       -c <col_size>           size of the column
       -r                      reverse a hex dump to original
+      -p                      pretty print: colored hex. not compatible with -r
       -h                      show this prompt
 ```
 
