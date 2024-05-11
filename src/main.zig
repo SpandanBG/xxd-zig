@@ -160,9 +160,15 @@ fn hex_dump(in: File, out: File, config: Config, allocator: Allocator) void {
             };
 
             (blk: {
-                if (config.prettry_print and (char == '\n' or char == '\r')) _ = out.write(YellowColor) catch |err| break :blk err;
+                if (config.prettry_print and (char == '\n' or char == '\r')) {
+                    _ = out.write(YellowColor) catch |err| break :blk err;
+                }
+
                 hex_wrote += out.write(hex_str) catch |err| break :blk err;
-                if (config.prettry_print and (char == '\n' or char == '\r')) _ = out.write(GreenColor) catch |err| break :blk err;
+
+                if (config.prettry_print and (char == '\n' or char == '\r')) {
+                    _ = out.write(GreenColor) catch |err| break :blk err;
+                }
             }) catch |err| {
                 std.log.err("error occured while writing to output = {any}", .{err});
                 return;
